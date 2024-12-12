@@ -99,9 +99,16 @@ func AddToCart() gin.HandlerFunc {
 // ViewCart fetches the cart items for a user
 func ViewCart() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userID := c.Query("user_id")
+		userID := c.GetString("uid") // Assume user ID is extracted from token middleware
 		if userID == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "User ID is required"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
+		// Convert the string userID to ObjectID
+		objID, err := primitive.ObjectIDFromHex(userID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 			return
 		}
 
@@ -109,8 +116,14 @@ func ViewCart() gin.HandlerFunc {
 		defer cancel()
 
 		var cart models.Cart
-		err := CartCollection.FindOne(ctx, bson.M{"user_id": userID}).Decode(&cart)
+		// Query using the ObjectID for user_id
+		err = CartCollection.FindOne(ctx, bson.M{"user_id": objID}).Decode(&cart)
 		if err != nil {
+			if err == mongo.ErrNoDocuments {
+				// If no cart document found, respond with a 404
+				c.JSON(http.StatusNotFound, gin.H{"error": "Cart not found"})
+				return
+			}
 			log.Println("Error fetching cart:", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching cart"})
 			return
