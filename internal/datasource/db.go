@@ -55,3 +55,15 @@ func OrderData(client *mongo.Client, collectionName string) *mongo.Collection {
 	var orderCollection *mongo.Collection = client.Database("aevum-emporium").Collection(collectionName)
 	return orderCollection
 }
+func CartData(client *mongo.Client, collectionName string) *mongo.Collection {
+	var cartCollection *mongo.Collection = client.Database("aevum-emporium").Collection(collectionName)
+	return cartCollection
+}
+func ReviewData(client *mongo.Client, collectionName string) *mongo.Collection {
+	var reviewCollection *mongo.Collection = client.Database("aevum-emporium").Collection(collectionName)
+	return reviewCollection
+}
+func WishlistData(client *mongo.Client, collectionName string) *mongo.Collection {
+	var wishlistCollection *mongo.Collection = client.Database("aevum-emporium").Collection(collectionName)
+	return wishlistCollection
+}
