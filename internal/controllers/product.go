@@ -4,6 +4,7 @@ import (
 	"aevum-emporium-be/internal/datasource"
 	"aevum-emporium-be/internal/models"
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -16,12 +17,50 @@ import (
 
 var ProductCollection *mongo.Collection = datasource.ProductData(datasource.Client)
 
+func isAdmin(userID string) (bool, error) {
+	// Convert userID string to ObjectID
+	objID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return false, fmt.Errorf("invalid user ID format")
+	}
+
+	fmt.Println("Checking user role for UID:", userID)
+
+	var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+	defer cancel()
+
+	var user models.User
+	// Query based on ObjectID
+	err = UserCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return false, nil // No user found, not an admin
+		}
+		return false, err // Other errors (DB issues)
+	}
+
+	fmt.Println("User role found:", user.Role)
+
+	// Check if the user role is admin
+	return user.Role == "admin", nil
+}
+
 func AddProduct() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Ensure user is authenticated
+		// Ensure user is authenticated and has admin role
 		userID := c.GetString("uid")
 		if userID == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
+		isAdmin, err := isAdmin(userID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error checking user role"})
+			return
+		}
+		if !isAdmin {
+			c.JSON(http.StatusForbidden, gin.H{"error": "You are not authorized to add products"})
 			return
 		}
 
@@ -39,7 +78,7 @@ func AddProduct() gin.HandlerFunc {
 		product.CreatedAt = time.Now()
 		product.UpdatedAt = time.Now()
 
-		_, err := ProductCollection.InsertOne(ctx, product)
+		_, err = ProductCollection.InsertOne(ctx, product)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Product could not be created"})
 			return
@@ -99,10 +138,20 @@ func GetProductByID() gin.HandlerFunc {
 
 func UpdateProduct() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Ensure user is authenticated
+		// Ensure user is authenticated and has admin role
 		userID := c.GetString("uid")
 		if userID == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
+		isAdmin, err := isAdmin(userID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error checking user role"})
+			return
+		}
+		if !isAdmin {
+			c.JSON(http.StatusForbidden, gin.H{"error": "You are not authorized to update products"})
 			return
 		}
 
@@ -146,10 +195,20 @@ func UpdateProduct() gin.HandlerFunc {
 
 func DeleteProduct() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Ensure user is authenticated
+		// Ensure user is authenticated and has admin role
 		userID := c.GetString("uid")
 		if userID == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
+		isAdmin, err := isAdmin(userID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error checking user role"})
+			return
+		}
+		if !isAdmin {
+			c.JSON(http.StatusForbidden, gin.H{"error": "You are not authorized to delete products"})
 			return
 		}
 
