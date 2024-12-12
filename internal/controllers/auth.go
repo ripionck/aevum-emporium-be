@@ -5,7 +5,6 @@ import (
 	"aevum-emporium-be/internal/models"
 	generate "aevum-emporium-be/internal/token"
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -44,57 +43,70 @@ func SignUp() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
+
 		var user models.User
 		if err := c.BindJSON(&user); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
+
 		validationErr := Validate.Struct(user)
 		if validationErr != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr})
+			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
 			return
 		}
 
+		// Check if email already exists
 		count, err := UserCollection.CountDocuments(ctx, bson.M{"email": user.Email})
 		if err != nil {
 			log.Panic(err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error while checking for existing user"})
 			return
 		}
 		if count > 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "User already exists"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Email already exists"})
+			return
 		}
-		count, err = UserCollection.CountDocuments(ctx, bson.M{"phone": user.Phone})
-		defer cancel()
+
+		// Check if phone number already exists
+		count, err = UserCollection.CountDocuments(ctx, bson.M{"phone_number": user.PhoneNumber})
 		if err != nil {
 			log.Panic(err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error while checking for existing phone number"})
 			return
 		}
 		if count > 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Phone is already in use"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Phone number already in use"})
 			return
 		}
-		password := HashPassword(*user.Password)
-		user.Password = &password
 
-		user.Created_At, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		user.Updated_At, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		user.ID = primitive.NewObjectID()
-		user.User_ID = user.ID.Hex()
-		token, refreshtoken, _ := generate.TokenGenerator(*user.Email, *user.First_Name, *user.Last_Name, user.User_ID)
-		user.Token = &token
-		user.Refresh_Token = &refreshtoken
-		user.UserCart = make([]models.Cart, 0)
-		user.Address_Details = make([]models.Address, 0)
-		user.Order_Status = make([]models.Order, 0)
-		_, inserterr := UserCollection.InsertOne(ctx, user)
-		if inserterr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "not created"})
+		// Hash the user's password
+		hashedPassword := HashPassword(user.Password)
+		user.Password = hashedPassword
+
+		// Set timestamps and create user ID
+		user.CreatedAt = time.Now()
+		user.UpdatedAt = time.Now()
+		user.UserID = primitive.NewObjectID()
+
+		// Default role to "customer" if not provided
+		if user.Role == "" {
+			user.Role = "customer"
+		}
+
+		// Initialize address list if not provided
+		if user.Address == nil {
+			user.Address = make([]models.Address, 0)
+		}
+
+		// Insert the user into the database
+		_, insertErr := UserCollection.InsertOne(ctx, user)
+		if insertErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error while creating user"})
 			return
 		}
-		defer cancel()
-		c.JSON(http.StatusCreated, "Successfully Signed Up!!")
+
+		c.JSON(http.StatusCreated, gin.H{"message": "Successfully signed up!"})
 	}
 }
 
@@ -102,29 +114,53 @@ func Login() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
-		var user models.User
-		var founduser models.User
-		if err := c.BindJSON(&user); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err})
-			return
-		}
-		err := UserCollection.FindOne(ctx, bson.M{"email": user.Email}).Decode(&founduser)
-		defer cancel()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "login or password incorrect"})
-			return
-		}
-		PasswordIsValid, msg := VerifyPassword(*user.Password, *founduser.Password)
-		defer cancel()
-		if !PasswordIsValid {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
-			fmt.Println(msg)
-			return
-		}
-		token, refreshToken, _ := generate.TokenGenerator(*founduser.Email, *founduser.First_Name, *founduser.Last_Name, founduser.User_ID)
-		defer cancel()
-		generate.UpdateAllTokens(token, refreshToken, founduser.User_ID)
-		c.JSON(http.StatusFound, founduser)
 
+		var userLoginDetails struct {
+			Email    string `json:"email" validate:"required,email"`
+			Password string `json:"password" validate:"required"`
+		}
+
+		var foundUser models.User
+
+		if err := c.BindJSON(&userLoginDetails); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		// Validate input
+		validationErr := Validate.Struct(userLoginDetails)
+		if validationErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
+			return
+		}
+
+		// Find the user in the database
+		err := UserCollection.FindOne(ctx, bson.M{"email": userLoginDetails.Email}).Decode(&foundUser)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+			return
+		}
+
+		// Verify password
+		isValidPassword, msg := VerifyPassword(userLoginDetails.Password, foundUser.Password)
+		if !isValidPassword {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": msg})
+			return
+		}
+
+		// Generate tokens and update them in the database
+		token, refreshToken, _ := generate.TokenGenerator(foundUser.Email, foundUser.FirstName, foundUser.LastName, foundUser.UserID.Hex())
+		generate.UpdateAllTokens(token, refreshToken, foundUser.UserID.Hex())
+
+		// Send user information back to the client (excluding sensitive fields)
+		c.JSON(http.StatusOK, gin.H{
+			"user_id":      foundUser.UserID,
+			"first_name":   foundUser.FirstName,
+			"last_name":    foundUser.LastName,
+			"email":        foundUser.Email,
+			"phone_number": foundUser.PhoneNumber,
+			"address":      foundUser.Address,
+			"role":         foundUser.Role,
+		})
 	}
 }
