@@ -7,10 +7,19 @@ import (
 )
 
 type Order struct {
-	Order_ID       primitive.ObjectID `bson:"_id"`
-	Order_Cart     []Cart             `json:"order_list"  bson:"order_list"`
-	Ordered_At     time.Time          `json:"ordered_on"  bson:"ordered_on"`
-	Price          int                `json:"total_price" bson:"total_price"`
-	Discount       *int               `json:"discount"    bson:"discount"`
-	Payment_Method Payment            `json:"payment_method" bson:"payment_method"`
+	OrderID       primitive.ObjectID `bson:"_id" json:"order_id"`
+	UserID        primitive.ObjectID `bson:"user_id" json:"user_id"`
+	Items         []OrderItem        `bson:"items" json:"items"`
+	TotalPrice    float64            `bson:"total_price" json:"total_price"`
+	Discount      *float64           `bson:"discount" json:"discount"`
+	OrderedAt     time.Time          `bson:"ordered_at" json:"ordered_at"`
+	PaymentMethod Payment            `bson:"payment_method" json:"payment_method"`
+	Status        string             `bson:"status" json:"status"` //"Processing", "Shipped", "Delivered"
+}
+
+type OrderItem struct {
+	ProductID primitive.ObjectID `bson:"product_id" json:"product_id"`
+	Name      string             `bson:"name" json:"name"`
+	Quantity  int                `bson:"quantity" json:"quantity"`
+	Price     float64            `bson:"price" json:"price"`
 }

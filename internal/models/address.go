@@ -3,9 +3,11 @@ package models
 import "go.mongodb.org/mongo-driver/bson/primitive"
 
 type Address struct {
-	Address_id primitive.ObjectID `bson:"_id"`
-	House      *string            `json:"house_name" bson:"house_name"`
-	Street     *string            `json:"street_name" bson:"street_name"`
-	City       *string            `json:"city_name" bson:"city_name"`
-	Pincode    *string            `json:"pin_code" bson:"pin_code"`
+	AddressID primitive.ObjectID `bson:"_id" json:"address_id"`
+	Street    string             `bson:"street" json:"street"`
+	City      string             `bson:"city" json:"city"`
+	State     string             `bson:"state" json:"state"`
+	Country   string             `bson:"country" json:"country"`
+	ZipCode   string             `bson:"zip_code" json:"zip_code"`
+	IsDefault bool               `bson:"is_default" json:"is_default"`
 }

@@ -1,13 +1,21 @@
 package models
 
 import (
+	"time"
+
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type Cart struct {
-	Product_ID   primitive.ObjectID `bson:"_id"`
-	Product_Name *string            `json:"product_name" bson:"product_name"`
-	Price        int                `json:"price"  bson:"price"`
-	Rating       *uint              `json:"rating" bson:"rating"`
-	Image        *string            `json:"image"  bson:"image"`
+	CartID    primitive.ObjectID `bson:"_id" json:"cart_id"`
+	UserID    primitive.ObjectID `bson:"user_id" json:"user_id"`
+	Items     []CartItem         `bson:"items" json:"items"`
+	Total     float64            `bson:"total" json:"total"`
+	CreatedAt time.Time          `bson:"created_at" json:"created_at"`
+}
+
+type CartItem struct {
+	ProductID primitive.ObjectID `bson:"product_id" json:"product_id"`
+	Quantity  int                `bson:"quantity" json:"quantity"`
+	Price     float64            `bson:"price" json:"price"`
 }

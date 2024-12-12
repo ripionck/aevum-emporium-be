@@ -50,3 +50,8 @@ func ProductData(client *mongo.Client, collectionName string) *mongo.Collection 
 	var productCollection *mongo.Collection = client.Database("aevum-emporium").Collection(collectionName)
 	return productCollection
 }
+
+func OrderData(client *mongo.Client, collectionName string) *mongo.Collection {
+	var orderCollection *mongo.Collection = client.Database("aevum-emporium").Collection(collectionName)
+	return orderCollection
+}

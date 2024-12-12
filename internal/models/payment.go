@@ -1,6 +1,15 @@
 package models
 
+import (
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
+
 type Payment struct {
-	Digital bool `json:"digital" bson:"digital"`
-	COD     bool `json:"cod"     bson:"cod"`
+	PaymentID primitive.ObjectID `bson:"_id" json:"payment_id"`
+	Method    string             `bson:"method" json:"method"` //  "Credit Card", "PayPal"
+	Status    string             `bson:"status" json:"status"` //  "Pending", "Completed"
+	Amount    float64            `bson:"amount" json:"amount"`
+	PaidAt    *time.Time         `bson:"paid_at" json:"paid_at"`
 }

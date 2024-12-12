@@ -7,18 +7,14 @@ import (
 )
 
 type User struct {
-	ID              primitive.ObjectID `json:"_id" bson:"_id"`
-	First_Name      *string            `json:"first_name" validate:"required,min=2,max=30"`
-	Last_Name       *string            `json:"last_name"  validate:"required,min=2,max=30"`
-	Password        *string            `json:"password"   validate:"required,min=6"`
-	Email           *string            `json:"email"      validate:"email,required"`
-	Phone           *string            `json:"phone"      validate:"required"`
-	Token           *string            `json:"token"`
-	Refresh_Token   *string            `josn:"refresh_token"`
-	Created_At      time.Time          `json:"created_at"`
-	Updated_At      time.Time          `json:"updtaed_at"`
-	User_ID         string             `json:"user_id"`
-	UserCart        []Cart             `json:"usercart" bson:"usercart"`
-	Address_Details []Address          `json:"address" bson:"address"`
-	Order_Status    []Order            `json:"orders" bson:"orders"`
+	UserID      primitive.ObjectID `bson:"_id" json:"user_id"`
+	FirstName   string             `bson:"first_name" json:"first_name"`
+	LastName    string             `bson:"last_name" json:"last_name"`
+	Email       string             `bson:"email" json:"email"`
+	Password    string             `bson:"password" json:"password"`
+	PhoneNumber string             `bson:"phone_number" json:"phone_number"`
+	Address     []Address          `bson:"address" json:"address"`
+	CreatedAt   time.Time          `bson:"created_at" json:"created_at"`
+	UpdatedAt   time.Time          `bson:"updated_at" json:"updated_at"`
+	Role        string             `bson:"role" json:"role"` // "admin" or "customer"
 }
