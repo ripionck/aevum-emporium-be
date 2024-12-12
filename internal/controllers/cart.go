@@ -4,7 +4,6 @@ import (
 	"aevum-emporium-be/internal/datasource"
 	"aevum-emporium-be/internal/models"
 	"context"
-	"errors"
 	"log"
 	"net/http"
 	"time"
@@ -15,167 +14,113 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type Application struct {
-	prodCollection *mongo.Collection
-	userCollection *mongo.Collection
-}
+var CartCollection *mongo.Collection = datasource.ProductData(datasource.Client, "Cart")
 
-func NewApplication(prodCollection, userCollection *mongo.Collection) *Application {
-	return &Application{
-		prodCollection: prodCollection,
-		userCollection: userCollection,
-	}
-}
-
-func (app *Application) AddToCart() gin.HandlerFunc {
+func AddToCart() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		productQueryID := c.Query("id")
-		if productQueryID == "" {
-			log.Println("product id is empty")
-			_ = c.AbortWithError(http.StatusBadRequest, errors.New("product id is empty"))
-			return
-		}
-		userQueryID := c.Query("userID")
-		if userQueryID == "" {
-			log.Println("user id is empty")
-			_ = c.AbortWithError(http.StatusBadRequest, errors.New("user id is empty"))
-			return
-		}
-		productID, err := primitive.ObjectIDFromHex(productQueryID)
-		if err != nil {
-			log.Println(err)
-			c.AbortWithStatus(http.StatusInternalServerError)
-			return
-		}
-		var ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 
-		err = datasource.AddProductToCart(ctx, app.prodCollection, app.userCollection, productID, userQueryID)
-		if err != nil {
-			c.IndentedJSON(http.StatusInternalServerError, err)
+		var cartItem models.CartItem
+		if err := c.BindJSON(&cartItem); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
 		}
-		c.IndentedJSON(200, "Successfully Added to the cart")
+
+		userID := c.GetString("user_id") // Assume user ID is extracted from token middleware
+		if userID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
+		userObjID, err := primitive.ObjectIDFromHex(userID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+			return
+		}
+
+		var cart models.Cart
+		err = CartCollection.FindOne(ctx, bson.M{"user_id": userObjID}).Decode(&cart)
+		if err != nil {
+			if err == mongo.ErrNoDocuments {
+				// Create a new cart if none exists
+				cart = models.Cart{
+					CartID:    primitive.NewObjectID(),
+					UserID:    userObjID,
+					Items:     []models.CartItem{cartItem},
+					Total:     cartItem.Price * float64(cartItem.Quantity),
+					CreatedAt: time.Now(),
+				}
+				_, err := CartCollection.InsertOne(ctx, cart)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Error creating cart"})
+					return
+				}
+				c.JSON(http.StatusOK, gin.H{"message": "Item added to cart", "cart": cart})
+				return
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving cart"})
+				return
+			}
+		}
+
+		// Check if the item already exists in the cart
+		itemExists := false
+		for i, item := range cart.Items {
+			if item.ProductID == cartItem.ProductID {
+				cart.Items[i].Quantity += cartItem.Quantity
+				cart.Items[i].Price = cartItem.Price
+				itemExists = true
+				break
+			}
+		}
+
+		if !itemExists {
+			cart.Items = append(cart.Items, cartItem)
+		}
+
+		// Update the total price
+		cart.Total = 0
+		for _, item := range cart.Items {
+			cart.Total += item.Price * float64(item.Quantity)
+		}
+
+		_, err = CartCollection.UpdateOne(ctx, bson.M{"_id": cart.CartID}, bson.M{"$set": bson.M{"items": cart.Items, "total": cart.Total}})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error updating cart"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Item added to cart", "cart": cart})
 	}
 }
 
-func (app *Application) RemoveItem() gin.HandlerFunc {
+func ViewCart() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		productQueryID := c.Query("id")
-		if productQueryID == "" {
-			log.Println("product id is inavalid")
-			_ = c.AbortWithError(http.StatusBadRequest, errors.New("product id is empty"))
+		userID := c.Query("user_id")
+		if userID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "User ID is required"})
 			return
 		}
-
-		userQueryID := c.Query("userID")
-		if userQueryID == "" {
-			log.Println("user id is empty")
-			_ = c.AbortWithError(http.StatusBadRequest, errors.New("UserID is empty"))
-		}
-
-		ProductID, err := primitive.ObjectIDFromHex(productQueryID)
-		if err != nil {
-			log.Println(err)
-			c.AbortWithStatus(http.StatusInternalServerError)
-			return
-		}
-
-		var ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		err = datasource.RemoveCartItem(ctx, app.prodCollection, app.userCollection, ProductID, userQueryID)
-		if err != nil {
-			c.IndentedJSON(http.StatusInternalServerError, err)
-			return
-		}
-		c.IndentedJSON(200, "Successfully removed from cart")
-	}
-}
-
-func GetItemFromCart() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		user_id := c.Query("id")
-		if user_id == "" {
-			c.Header("Content-Type", "application/json")
-			c.JSON(http.StatusNotFound, gin.H{"error": "invalid id"})
-			c.Abort()
-			return
-		}
-
-		usert_id, _ := primitive.ObjectIDFromHex(user_id)
 
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 
-		var filledcart models.User
-		err := UserCollection.FindOne(ctx, bson.D{primitive.E{Key: "_id", Value: usert_id}}).Decode(&filledcart)
+		var cartItems []models.CartItem
+		cursor, err := CartCollection.Find(ctx, bson.M{"user_id": userID})
 		if err != nil {
-			log.Println(err)
-			c.IndentedJSON(500, "not id found")
+			log.Println("Error fetching cart items:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching cart items"})
+			return
+		}
+		defer cursor.Close(ctx)
+
+		if err := cursor.All(ctx, &cartItems); err != nil {
+			log.Println("Error decoding cart items:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error decoding cart items"})
 			return
 		}
 
-		filter_match := bson.D{{Key: "$match", Value: bson.D{primitive.E{Key: "_id", Value: usert_id}}}}
-		unwind := bson.D{{Key: "$unwind", Value: bson.D{primitive.E{Key: "path", Value: "$usercart"}}}}
-		grouping := bson.D{{Key: "$group", Value: bson.D{primitive.E{Key: "_id", Value: "$_id"}, {Key: "total", Value: bson.D{primitive.E{Key: "$sum", Value: "$usercart.price"}}}}}}
-		pointcursor, err := UserCollection.Aggregate(ctx, mongo.Pipeline{filter_match, unwind, grouping})
-		if err != nil {
-			log.Println(err)
-		}
-		var listing []bson.M
-		if err = pointcursor.All(ctx, &listing); err != nil {
-			log.Println(err)
-			c.AbortWithStatus(http.StatusInternalServerError)
-		}
-		for _, json := range listing {
-			c.IndentedJSON(200, json["total"])
-			c.IndentedJSON(200, filledcart.UserCart)
-		}
-		ctx.Done()
-	}
-}
-
-func (app *Application) BuyFromCart() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		userQueryID := c.Query("id")
-		if userQueryID == "" {
-			log.Panicln("user id is empty")
-			_ = c.AbortWithError(http.StatusBadRequest, errors.New("UserID is empty"))
-		}
-		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		defer cancel()
-		err := datasource.BuyItemFromCart(ctx, app.userCollection, userQueryID)
-		if err != nil {
-			c.IndentedJSON(http.StatusInternalServerError, err)
-		}
-		c.IndentedJSON(200, "Successfully Placed the order")
-	}
-}
-
-func (app *Application) InstantBuy() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		UserQueryID := c.Query("userid")
-		if UserQueryID == "" {
-			log.Println("UserID is empty")
-			_ = c.AbortWithError(http.StatusBadRequest, errors.New("UserID is empty"))
-		}
-		ProductQueryID := c.Query("pid")
-		if ProductQueryID == "" {
-			log.Println("Product_ID id is empty")
-			_ = c.AbortWithError(http.StatusBadRequest, errors.New("product_id is empty"))
-		}
-		productID, err := primitive.ObjectIDFromHex(ProductQueryID)
-		if err != nil {
-			log.Println(err)
-			c.AbortWithStatus(http.StatusInternalServerError)
-			return
-		}
-
-		var ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		err = datasource.InstantBuyer(ctx, app.prodCollection, app.userCollection, productID, UserQueryID)
-		if err != nil {
-			c.IndentedJSON(http.StatusInternalServerError, err)
-		}
-		c.IndentedJSON(200, "Successully placed the order")
+		c.JSON(http.StatusOK, cartItems)
 	}
 }

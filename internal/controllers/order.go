@@ -4,6 +4,7 @@ import (
 	"aevum-emporium-be/internal/datasource"
 	"aevum-emporium-be/internal/models"
 	"context"
+	"log"
 	"net/http"
 	"time"
 
@@ -13,9 +14,9 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-var OrderCollection *mongo.Collection = datasource.OrderData(datasource.Client, "Orders")
+var OrderCollection *mongo.Collection = datasource.ProductData(datasource.Client, "Orders")
 
-func AddOrder() gin.HandlerFunc {
+func PlaceOrder() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
@@ -26,79 +27,45 @@ func AddOrder() gin.HandlerFunc {
 			return
 		}
 
-		order.Order_ID = primitive.NewObjectID()
-		order.Ordered_At = time.Now()
+		order.OrderID = primitive.NewObjectID()
+		order.OrderedAt = time.Now()
 
 		_, err := OrderCollection.InsertOne(ctx, order)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create order"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not place order"})
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{"message": "Order added successfully"})
+		c.JSON(http.StatusOK, gin.H{"message": "Order placed successfully"})
 	}
 }
 
-func EditOrder() gin.HandlerFunc {
+func GetOrders() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		userID := c.Query("user_id")
+		if userID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "User ID is required"})
+			return
+		}
+
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 
-		orderID := c.Param("order_id")
-		objectID, err := primitive.ObjectIDFromHex(orderID)
+		var orders []models.Order
+		cursor, err := OrderCollection.Find(ctx, bson.M{"user_id": userID})
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order ID"})
+			log.Println("Error fetching orders:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching orders"})
+			return
+		}
+		defer cursor.Close(ctx)
+
+		if err := cursor.All(ctx, &orders); err != nil {
+			log.Println("Error decoding orders:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error decoding orders"})
 			return
 		}
 
-		var updatedOrder models.Order
-		if err := c.BindJSON(&updatedOrder); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-
-		update := bson.M{
-			"$set": updatedOrder,
-		}
-
-		result, err := OrderCollection.UpdateOne(ctx, bson.M{"_id": objectID}, update)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update order"})
-			return
-		}
-
-		if result.MatchedCount == 0 {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"message": "Order updated successfully"})
-	}
-}
-
-func DeleteOrder() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		defer cancel()
-
-		orderID := c.Param("order_id")
-		objectID, err := primitive.ObjectIDFromHex(orderID)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order ID"})
-			return
-		}
-
-		result, err := OrderCollection.DeleteOne(ctx, bson.M{"_id": objectID})
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete order"})
-			return
-		}
-
-		if result.DeletedCount == 0 {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"message": "Order deleted successfully"})
+		c.JSON(http.StatusOK, orders)
 	}
 }
