@@ -12,7 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func DBSet() *mongo.Client {
+func ConnectDB() *mongo.Client {
 	if err := godotenv.Load(); err != nil {
 		log.Println("Warning: .env file not loaded. Ensure environment variables are set.")
 	}
@@ -38,15 +38,15 @@ func DBSet() *mongo.Client {
 	return client
 }
 
-var Client *mongo.Client = DBSet()
+var Client *mongo.Client = ConnectDB()
 
-func UserData(client *mongo.Client, CollectionName string) *mongo.Collection {
-	var collection *mongo.Collection = client.Database("aevum-emporium").Collection(CollectionName)
-	return collection
+func UserData(client *mongo.Client, collectionName string) *mongo.Collection {
+	var userCollection *mongo.Collection = client.Database("aevum-emporium").Collection(collectionName)
+	return userCollection
 
 }
 
-func ProductData(client *mongo.Client, CollectionName string) *mongo.Collection {
-	var productcollection *mongo.Collection = client.Database("aevum-emporium").Collection(CollectionName)
-	return productcollection
+func ProductData(client *mongo.Client, collectionName string) *mongo.Collection {
+	var productCollection *mongo.Collection = client.Database("aevum-emporium").Collection(collectionName)
+	return productCollection
 }

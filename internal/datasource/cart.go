@@ -28,7 +28,7 @@ func AddProductToCart(ctx context.Context, prodCollection, userCollection *mongo
 		log.Println(err)
 		return ErrCantFindProduct
 	}
-	var productcart []models.ProductUser
+	var productcart []models.Cart
 	err = searchfromdb.All(ctx, &productcart)
 	if err != nil {
 		log.Println(err)
@@ -75,8 +75,8 @@ func BuyItemFromCart(ctx context.Context, userCollection *mongo.Collection, user
 	var getcartitems models.User
 	var ordercart models.Order
 	ordercart.Order_ID = primitive.NewObjectID()
-	ordercart.Orderered_At = time.Now()
-	ordercart.Order_Cart = make([]models.ProductUser, 0)
+	ordercart.Ordered_At = time.Now()
+	ordercart.Order_Cart = make([]models.Cart, 0)
 	ordercart.Payment_Method.COD = true
 	unwind := bson.D{{Key: "$unwind", Value: bson.D{primitive.E{Key: "path", Value: "$usercart"}}}}
 	grouping := bson.D{{Key: "$group", Value: bson.D{primitive.E{Key: "_id", Value: "$_id"}, {Key: "total", Value: bson.D{primitive.E{Key: "$sum", Value: "$usercart.price"}}}}}}
@@ -111,7 +111,7 @@ func BuyItemFromCart(ctx context.Context, userCollection *mongo.Collection, user
 	if err != nil {
 		log.Println(err)
 	}
-	usercart_empty := make([]models.ProductUser, 0)
+	usercart_empty := make([]models.Cart, 0)
 	filtered := bson.D{primitive.E{Key: "_id", Value: id}}
 	updated := bson.D{{Key: "$set", Value: bson.D{primitive.E{Key: "usercart", Value: usercart_empty}}}}
 	_, err = userCollection.UpdateOne(ctx, filtered, updated)
@@ -128,11 +128,11 @@ func InstantBuyer(ctx context.Context, prodCollection, userCollection *mongo.Col
 		log.Println(err)
 		return ErrUserIDIsNotValid
 	}
-	var product_details models.ProductUser
+	var product_details models.Cart
 	var orders_detail models.Order
 	orders_detail.Order_ID = primitive.NewObjectID()
-	orders_detail.Orderered_At = time.Now()
-	orders_detail.Order_Cart = make([]models.ProductUser, 0)
+	orders_detail.Ordered_At = time.Now()
+	orders_detail.Order_Cart = make([]models.Cart, 0)
 	orders_detail.Payment_Method.COD = true
 	err = prodCollection.FindOne(ctx, bson.D{primitive.E{Key: "_id", Value: productID}}).Decode(&product_details)
 	if err != nil {

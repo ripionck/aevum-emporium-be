@@ -85,7 +85,7 @@ func SignUp() gin.HandlerFunc {
 		token, refreshtoken, _ := generate.TokenGenerator(*user.Email, *user.First_Name, *user.Last_Name, user.User_ID)
 		user.Token = &token
 		user.Refresh_Token = &refreshtoken
-		user.UserCart = make([]models.ProductUser, 0)
+		user.UserCart = make([]models.Cart, 0)
 		user.Address_Details = make([]models.Address, 0)
 		user.Order_Status = make([]models.Order, 0)
 		_, inserterr := UserCollection.InsertOne(ctx, user)
