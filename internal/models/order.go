@@ -15,6 +15,8 @@ type Order struct {
 	OrderedAt     time.Time          `bson:"ordered_at" json:"ordered_at"`
 	PaymentMethod Payment            `bson:"payment_method" json:"payment_method"`
 	Status        string             `bson:"status" json:"status"` //"Processing", "Shipped", "Delivered"
+	TransactionID string             `bson:"transaction_id" json:"transaction_id"`
+	PaymentStatus string             `bson:"payment_status" json:"payment_status"` //"Pending", "Succeeded", "Failed"
 }
 
 type OrderItem struct {

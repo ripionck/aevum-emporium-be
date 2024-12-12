@@ -28,10 +28,12 @@ func SetupRoutes(router *gin.Engine) {
 	}
 
 	// Order Routes
-	orderGroup := router.Group("/order")
+	orderGroup := router.Group("/orders")
 	{
-		orderGroup.POST("/", middleware.AuthMiddleware(), controllers.PlaceOrder())
+		orderGroup.POST("/place", middleware.AuthMiddleware(), controllers.PlaceOrder())
 		orderGroup.GET("/", middleware.AuthMiddleware(), controllers.GetOrders())
+		orderGroup.PUT("/:order_id/status", middleware.AuthMiddleware(), controllers.UpdateOrder())
+		orderGroup.DELETE("/:order_id", middleware.AuthMiddleware(), controllers.CancelOrder())
 	}
 
 	// Cart Routes

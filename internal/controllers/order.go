@@ -42,10 +42,19 @@ func PlaceOrder() gin.HandlerFunc {
 			return
 		}
 
-		// Ensure the order has the user ID
+		// Ensure the order has the user ID and other necessary fields
 		order.UserID = userObjectID
 		order.OrderID = primitive.NewObjectID()
 		order.OrderedAt = time.Now()
+		order.Status = "Processing" // Default status
+
+		// Calculate the total price if it's not already provided
+		if order.TotalPrice == 0 {
+			order.TotalPrice = 0
+			for _, item := range order.Items {
+				order.TotalPrice += item.Price * float64(item.Quantity)
+			}
+		}
 
 		// Insert the order into the database
 		_, err = OrderCollection.InsertOne(ctx, order)
@@ -58,7 +67,6 @@ func PlaceOrder() gin.HandlerFunc {
 	}
 }
 
-// GetOrders retrieves all orders for the authenticated user
 func GetOrders() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Ensure user is authenticated
@@ -103,5 +111,110 @@ func GetOrders() gin.HandlerFunc {
 
 		// Return orders if found
 		c.JSON(http.StatusOK, orders)
+	}
+}
+
+func UpdateOrder() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Ensure user is authenticated
+		userID := c.GetString("uid")
+		if userID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
+		// Check if the user is an admin
+		isAdmin, err := isAdmin(userID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error checking user role"})
+			return
+		}
+		if !isAdmin {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Only admins can update the order status"})
+			return
+		}
+
+		// Get the order ID from the URL
+		orderID := c.Param("order_id")
+		orderObjectID, err := primitive.ObjectIDFromHex(orderID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order ID"})
+			return
+		}
+
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
+		var updateData struct {
+			Status string `json:"status"` // New status
+		}
+		if err := c.BindJSON(&updateData); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		// Ensure status is valid (e.g., "Shipping", "Delivered", etc.)
+		if updateData.Status == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Status cannot be empty"})
+			return
+		}
+		if updateData.Status != "Processing" && updateData.Status != "Shipping" && updateData.Status != "Delivered" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid status value"})
+			return
+		}
+
+		// Update the order status in the database
+		update := bson.M{
+			"$set": bson.M{
+				"status": updateData.Status,
+			},
+		}
+		_, err = OrderCollection.UpdateOne(ctx, bson.M{"_id": orderObjectID}, update)
+		if err != nil {
+			log.Println("Error updating order:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error updating order"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Order status updated successfully"})
+	}
+}
+
+func CancelOrder() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Ensure user is authenticated
+		userID := c.GetString("uid")
+		if userID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
+		// Convert the userID to ObjectID
+		userObjectID, err := primitive.ObjectIDFromHex(userID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+			return
+		}
+
+		// Get the order ID from the URL
+		orderID := c.Param("order_id")
+		orderObjectID, err := primitive.ObjectIDFromHex(orderID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order ID"})
+			return
+		}
+
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
+		// Delete the order from the database
+		_, err = OrderCollection.DeleteOne(ctx, bson.M{"_id": orderObjectID, "user_id": userObjectID})
+		if err != nil {
+			log.Println("Error deleting order:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error deleting order"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Order deleted successfully"})
 	}
 }
