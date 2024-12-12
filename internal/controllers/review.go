@@ -87,6 +87,17 @@ func DeleteReview() gin.HandlerFunc {
 			return
 		}
 
+		// Check if the user is an admin
+		isAdmin, err := isAdmin(userID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error checking user role"})
+			return
+		}
+		if !isAdmin {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Only admins can update the order status"})
+			return
+		}
+
 		reviewID := c.Param("review_id")
 		objID, err := primitive.ObjectIDFromHex(reviewID)
 		if err != nil {

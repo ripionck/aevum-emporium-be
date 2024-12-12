@@ -63,4 +63,12 @@ func SetupRoutes(router *gin.Engine) {
 		wishlistGroup.DELETE("/:wishlist_id", middleware.AuthMiddleware(), controllers.DeleteWishlist())
 	}
 
+	// Review Routes
+	reviewGroup := router.Group("/review")
+	{
+		reviewGroup.POST("/add", middleware.AuthMiddleware(), controllers.AddReview())
+		reviewGroup.GET("/:product_id", controllers.GetReviewsByProduct())
+		reviewGroup.DELETE("/:review_id", middleware.AuthMiddleware(), controllers.DeleteReview())
+	}
+
 }
