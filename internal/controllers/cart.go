@@ -14,7 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-var CartCollection *mongo.Collection = datasource.ProductData(datasource.Client, "Cart")
+var CartCollection *mongo.Collection = datasource.CartData(datasource.Client)
 
 // AddToCart adds a product to the user's cart
 func AddToCart() gin.HandlerFunc {

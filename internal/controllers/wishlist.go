@@ -14,7 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-var WishlistCollection *mongo.Collection = datasource.UserData(datasource.Client, "Wishlist")
+var WishlistCollection *mongo.Collection = datasource.WishlistData(datasource.Client)
 
 // AddWishlist adds a product to the user's wishlist
 func AddWishlist() gin.HandlerFunc {

@@ -12,6 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+// ConnectDB establishes a connection to MongoDB and returns the client.
 func ConnectDB() *mongo.Client {
 	if err := godotenv.Load(); err != nil {
 		log.Println("Warning: .env file not loaded. Ensure environment variables are set.")
@@ -38,32 +39,33 @@ func ConnectDB() *mongo.Client {
 	return client
 }
 
+// Global variable to hold the MongoDB client
 var Client *mongo.Client = ConnectDB()
 
-func UserData(client *mongo.Client, collectionName string) *mongo.Collection {
-	var userCollection *mongo.Collection = client.Database("aevum-emporium").Collection(collectionName)
-	return userCollection
-
+func getCollection(client *mongo.Client, collectionName string) *mongo.Collection {
+	return client.Database("aevum-emporium").Collection(collectionName)
 }
 
-func ProductData(client *mongo.Client, collectionName string) *mongo.Collection {
-	var productCollection *mongo.Collection = client.Database("aevum-emporium").Collection(collectionName)
-	return productCollection
+func UserData(client *mongo.Client) *mongo.Collection {
+	return getCollection(client, "User")
 }
 
-func OrderData(client *mongo.Client, collectionName string) *mongo.Collection {
-	var orderCollection *mongo.Collection = client.Database("aevum-emporium").Collection(collectionName)
-	return orderCollection
+func ProductData(client *mongo.Client) *mongo.Collection {
+	return getCollection(client, "Product")
 }
-func CartData(client *mongo.Client, collectionName string) *mongo.Collection {
-	var cartCollection *mongo.Collection = client.Database("aevum-emporium").Collection(collectionName)
-	return cartCollection
+
+func OrderData(client *mongo.Client) *mongo.Collection {
+	return getCollection(client, "Order")
 }
-func ReviewData(client *mongo.Client, collectionName string) *mongo.Collection {
-	var reviewCollection *mongo.Collection = client.Database("aevum-emporium").Collection(collectionName)
-	return reviewCollection
+
+func CartData(client *mongo.Client) *mongo.Collection {
+	return getCollection(client, "Cart")
 }
-func WishlistData(client *mongo.Client, collectionName string) *mongo.Collection {
-	var wishlistCollection *mongo.Collection = client.Database("aevum-emporium").Collection(collectionName)
-	return wishlistCollection
+
+func ReviewData(client *mongo.Client) *mongo.Collection {
+	return getCollection(client, "Review")
+}
+
+func WishlistData(client *mongo.Client) *mongo.Collection {
+	return getCollection(client, "Wishlist")
 }

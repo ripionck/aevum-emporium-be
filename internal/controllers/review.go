@@ -14,7 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-var ReviewCollection *mongo.Collection = datasource.UserData(datasource.Client, "Users")
+var ReviewCollection *mongo.Collection = datasource.ReviewData(datasource.Client)
 
 func AddReview() gin.HandlerFunc {
 	return func(c *gin.Context) {

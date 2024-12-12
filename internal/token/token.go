@@ -22,7 +22,7 @@ type SignedDetails struct {
 	jwt.RegisteredClaims
 }
 
-var UserData *mongo.Collection = datasource.UserData(datasource.Client, "Users")
+var UserData *mongo.Collection = datasource.UserData(datasource.Client)
 var SECRET_KEY = os.Getenv("SECRET_KEY")
 
 func TokenGenerator(email string, firstname string, lastname string, uid string) (signedtoken string, signedrefreshtoken string, err error) {

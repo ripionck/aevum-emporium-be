@@ -14,7 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-var OrderCollection *mongo.Collection = datasource.ProductData(datasource.Client, "Orders")
+var OrderCollection *mongo.Collection = datasource.OrderData(datasource.Client)
 
 func PlaceOrder() gin.HandlerFunc {
 	return func(c *gin.Context) {
