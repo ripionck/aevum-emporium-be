@@ -14,23 +14,24 @@ import (
 
 func AddAddress() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userID := c.Query("id")
+		// Ensure user is authenticated
+		userID := c.GetString("uid")
 		if userID == "" {
-			c.Header("Content-Type", "application/json")
-			c.JSON(http.StatusNotFound, gin.H{"error": "Invalid user ID"})
-			c.Abort()
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 			return
 		}
 
+		// Convert userID to ObjectID
 		userObjectID, err := primitive.ObjectIDFromHex(userID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
 			return
 		}
 
+		// Bind the new address
 		var newAddress models.Address
 		newAddress.AddressID = primitive.NewObjectID()
-		if err = c.BindJSON(&newAddress); err != nil {
+		if err := c.BindJSON(&newAddress); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid address format"})
 			return
 		}
@@ -38,7 +39,7 @@ func AddAddress() gin.HandlerFunc {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 
-		// Ensure user doesn't have more than 2 addresses
+		// Ensure the user doesn't have more than 2 addresses
 		countFilter := bson.D{{Key: "_id", Value: userObjectID}}
 		countPipeline := mongo.Pipeline{
 			{{Key: "$match", Value: countFilter}},
@@ -66,12 +67,13 @@ func AddAddress() gin.HandlerFunc {
 			addressCount = results[0]["count"].(int32)
 		}
 
+		// Allow a maximum of 2 addresses
 		if addressCount >= 2 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Maximum of 2 addresses allowed"})
 			return
 		}
 
-		// Add new address
+		// Add the new address to the user's document
 		filter := bson.D{{Key: "_id", Value: userObjectID}}
 		update := bson.D{{Key: "$push", Value: bson.D{{Key: "address", Value: newAddress}}}}
 
@@ -87,20 +89,23 @@ func AddAddress() gin.HandlerFunc {
 
 func EditHomeAddress() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userID := c.Query("id")
+		// Ensure user is authenticated
+		userID := c.GetString("uid")
 		if userID == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 			return
 		}
 
+		// Convert userID to ObjectID
 		userObjectID, err := primitive.ObjectIDFromHex(userID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
 			return
 		}
 
+		// Bind the updated address
 		var updatedAddress models.Address
-		if err = c.BindJSON(&updatedAddress); err != nil {
+		if err := c.BindJSON(&updatedAddress); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid address format"})
 			return
 		}
@@ -108,6 +113,7 @@ func EditHomeAddress() gin.HandlerFunc {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 
+		// Check if the address being edited is the home address
 		filter := bson.D{{Key: "_id", Value: userObjectID}}
 		update := bson.D{{Key: "$set", Value: bson.D{
 			{Key: "address.0.street", Value: updatedAddress.Street},
@@ -130,20 +136,23 @@ func EditHomeAddress() gin.HandlerFunc {
 
 func EditWorkAddress() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userID := c.Query("id")
+		// Ensure user is authenticated
+		userID := c.GetString("uid")
 		if userID == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 			return
 		}
 
+		// Convert userID to ObjectID
 		userObjectID, err := primitive.ObjectIDFromHex(userID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
 			return
 		}
 
+		// Bind the updated address
 		var updatedAddress models.Address
-		if err = c.BindJSON(&updatedAddress); err != nil {
+		if err := c.BindJSON(&updatedAddress); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid address format"})
 			return
 		}
@@ -151,6 +160,7 @@ func EditWorkAddress() gin.HandlerFunc {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 
+		// Check if the address being edited is the work address
 		filter := bson.D{{Key: "_id", Value: userObjectID}}
 		update := bson.D{{Key: "$set", Value: bson.D{
 			{Key: "address.1.street", Value: updatedAddress.Street},
@@ -173,12 +183,14 @@ func EditWorkAddress() gin.HandlerFunc {
 
 func DeleteAddress() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userID := c.Query("id")
+		// Ensure user is authenticated
+		userID := c.GetString("uid")
 		if userID == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 			return
 		}
 
+		// Convert userID to ObjectID
 		userObjectID, err := primitive.ObjectIDFromHex(userID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
@@ -188,6 +200,7 @@ func DeleteAddress() gin.HandlerFunc {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 
+		// Remove all addresses for the user
 		filter := bson.D{{Key: "_id", Value: userObjectID}}
 		update := bson.D{{Key: "$set", Value: bson.D{{Key: "address", Value: []models.Address{}}}}}
 

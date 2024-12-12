@@ -28,7 +28,7 @@ func AddToCart() gin.HandlerFunc {
 			return
 		}
 
-		userID := c.GetString("user_id") // Assume user ID is extracted from token middleware
+		userID := c.GetString("uid") // Assume user ID is extracted from token middleware
 		if userID == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 			return
@@ -126,7 +126,7 @@ func RemoveFromCart() gin.HandlerFunc {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 
-		userID := c.GetString("user_id") // Assume user ID is extracted from token middleware
+		userID := c.GetString("uid") // Assume user ID is extracted from token middleware
 		if userID == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 			return
@@ -194,7 +194,7 @@ func ClearCart() gin.HandlerFunc {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 
-		userID := c.GetString("user_id") // Assume user ID is extracted from token middleware
+		userID := c.GetString("uid") // Assume user ID is extracted from token middleware
 		if userID == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 			return

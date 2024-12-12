@@ -154,13 +154,15 @@ func Login() gin.HandlerFunc {
 
 		// Send user information back to the client (excluding sensitive fields)
 		c.JSON(http.StatusOK, gin.H{
-			"user_id":      foundUser.UserID,
-			"first_name":   foundUser.FirstName,
-			"last_name":    foundUser.LastName,
-			"email":        foundUser.Email,
-			"phone_number": foundUser.PhoneNumber,
-			"address":      foundUser.Address,
-			"role":         foundUser.Role,
+			"user_id":       foundUser.UserID,
+			"first_name":    foundUser.FirstName,
+			"last_name":     foundUser.LastName,
+			"email":         foundUser.Email,
+			"phone_number":  foundUser.PhoneNumber,
+			"address":       foundUser.Address,
+			"role":          foundUser.Role,
+			"token":         token,
+			"refresh_token": refreshToken,
 		})
 	}
 }

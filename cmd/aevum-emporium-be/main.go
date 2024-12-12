@@ -1,11 +1,8 @@
 package main
 
 import (
-	"aevum-emporium-be/internal/controllers"
 	"aevum-emporium-be/internal/datasource"
-	"aevum-emporium-be/internal/middleware"
 	"aevum-emporium-be/internal/routes"
-
 	"log"
 	"os"
 
@@ -13,30 +10,30 @@ import (
 )
 
 func main() {
+	// Load the PORT from environment variables, default to 8080
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
-	app := controllers.NewApplication(datasource.ProductData(datasource.Client, "Products"), datasource.UserData(datasource.Client, "Users"))
 
-	router := gin.New()
-	router.Use(gin.Logger())
-	routes.UserRoutes(router)
-	router.Use(middleware.Authentication())
-	router.GET("/addtocart", app.AddToCart())
-	router.GET("/removeitem", app.RemoveItem())
-	router.GET("/listcart", controllers.GetItemFromCart())
-	router.POST("/addaddress", controllers.AddAddress())
-	router.PUT("/edithomeaddress", controllers.EditHomeAddress())
-	router.PUT("/editworkaddress", controllers.EditWorkAddress())
-	router.GET("/deleteaddresses", controllers.DeleteAddress())
-	router.GET("/cartcheckout", app.BuyFromCart())
-	router.GET("/instantbuy", app.InstantBuy())
+	// Initialize the database
+	client := datasource.ConnectDB()
+	if client == nil {
+		log.Fatal("Failed to initialize MongoDB connection")
+	}
 
+	// Initialize the Gin router
+	router := gin.Default() // Initialize once
+
+	// Set up Gin routes (you need to define setupRoutes)
+	routes.SetupRoutes(router)
+
+	// Simple ping route
 	router.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "pong"})
 	})
 
+	// Run the server
 	if err := router.Run(":" + port); err != nil {
 		log.Fatalf("Failed to run server: %v", err)
 	}

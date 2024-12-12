@@ -18,6 +18,13 @@ var ReviewCollection *mongo.Collection = datasource.ReviewData(datasource.Client
 
 func AddReview() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Ensure user is authenticated
+		userID := c.GetString("uid")
+		if userID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 
@@ -73,6 +80,13 @@ func GetReviewsByProduct() gin.HandlerFunc {
 
 func DeleteReview() gin.HandlerFunc {
 	return func(c *gin.Context) {
+
+		userID := c.GetString("uid")
+		if userID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
 		reviewID := c.Param("review_id")
 		objID, err := primitive.ObjectIDFromHex(reviewID)
 		if err != nil {

@@ -19,6 +19,20 @@ var WishlistCollection *mongo.Collection = datasource.WishlistData(datasource.Cl
 // AddWishlist adds a product to the user's wishlist
 func AddWishlist() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Ensure user is authenticated
+		userID := c.GetString("uid")
+		if userID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
+		// Convert the userID string to primitive.ObjectID
+		userObjID, err := primitive.ObjectIDFromHex(userID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+			return
+		}
+
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 
@@ -28,12 +42,13 @@ func AddWishlist() gin.HandlerFunc {
 			return
 		}
 
-		// Assign a new ObjectID to Wishlist
+		// Assign userObjectID to the wishlist
+		wishlist.UserID = userObjID
 		wishlist.WishlistID = primitive.NewObjectID()
 		wishlist.CreatedAt = time.Now()
 
 		// Insert the wishlist document into the Wishlist collection
-		_, err := WishlistCollection.InsertOne(ctx, wishlist)
+		_, err = WishlistCollection.InsertOne(ctx, wishlist)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error adding to wishlist"})
 			return
@@ -46,11 +61,31 @@ func AddWishlist() gin.HandlerFunc {
 // GetWishlistByUser fetches all products in a user's wishlist
 func GetWishlistByUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Ensure user is authenticated
+		userID := c.GetString("uid")
+		if userID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
+		// Convert the userID string to primitive.ObjectID
+		_, err := primitive.ObjectIDFromHex(userID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+			return
+		}
+
+		// Ensure that the user is accessing their own wishlist
+		wishlistUserID := c.Param("user_id")
+		if wishlistUserID != userID {
+			c.JSON(http.StatusForbidden, gin.H{"error": "You are not authorized to view this wishlist"})
+			return
+		}
+
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 
-		userID := c.Param("user_id")
-		objID, err := primitive.ObjectIDFromHex(userID)
+		objID, err := primitive.ObjectIDFromHex(wishlistUserID)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 			return
@@ -75,6 +110,20 @@ func GetWishlistByUser() gin.HandlerFunc {
 // DeleteWishlist removes a product from the user's wishlist
 func DeleteWishlist() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Ensure user is authenticated
+		userID := c.GetString("uid")
+		if userID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
+		// Convert the userID string to primitive.ObjectID
+		userObjID, err := primitive.ObjectIDFromHex(userID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+			return
+		}
+
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 
@@ -82,6 +131,20 @@ func DeleteWishlist() gin.HandlerFunc {
 		objID, err := primitive.ObjectIDFromHex(wishlistID)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid wishlist ID"})
+			return
+		}
+
+		// Fetch the wishlist document to check if it belongs to the authenticated user
+		var wishlist models.Wishlist
+		err = WishlistCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&wishlist)
+		if err != nil {
+			log.Println("Error fetching wishlist:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching wishlist"})
+			return
+		}
+
+		if wishlist.UserID != userObjID {
+			c.JSON(http.StatusForbidden, gin.H{"error": "You are not authorized to delete this item from the wishlist"})
 			return
 		}
 

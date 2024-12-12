@@ -18,6 +18,13 @@ var ProductCollection *mongo.Collection = datasource.ProductData(datasource.Clie
 
 func AddProduct() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Ensure user is authenticated
+		userID := c.GetString("uid")
+		if userID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 
@@ -27,6 +34,7 @@ func AddProduct() gin.HandlerFunc {
 			return
 		}
 
+		// Set product ID and timestamps
 		product.ProductID = primitive.NewObjectID()
 		product.CreatedAt = time.Now()
 		product.UpdatedAt = time.Now()
@@ -91,6 +99,13 @@ func GetProductByID() gin.HandlerFunc {
 
 func UpdateProduct() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Ensure user is authenticated
+		userID := c.GetString("uid")
+		if userID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
 		productID := c.Param("id")
 		objID, err := primitive.ObjectIDFromHex(productID)
 		if err != nil {
@@ -108,7 +123,16 @@ func UpdateProduct() gin.HandlerFunc {
 		}
 
 		product.UpdatedAt = time.Now()
-		update := bson.M{"$set": product}
+
+		update := bson.M{"$set": bson.M{
+			"name":           product.Name,
+			"category":       product.Category,
+			"description":    product.Description,
+			"price":          product.Price,
+			"stock_quantity": product.StockQuantity,
+			"updated_at":     product.UpdatedAt,
+		}}
+
 		_, err = ProductCollection.UpdateOne(ctx, bson.M{"_id": objID}, update)
 		if err != nil {
 			log.Println("Error updating product:", err)
@@ -122,6 +146,13 @@ func UpdateProduct() gin.HandlerFunc {
 
 func DeleteProduct() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Ensure user is authenticated
+		userID := c.GetString("uid")
+		if userID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
 		productID := c.Param("id")
 		objID, err := primitive.ObjectIDFromHex(productID)
 		if err != nil {
