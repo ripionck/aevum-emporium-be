@@ -16,7 +16,6 @@ import (
 
 var OrderCollection *mongo.Collection = datasource.OrderData(datasource.Client)
 
-// PlaceOrder adds a new order to the database for the authenticated user
 func PlaceOrder() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Ensure user is authenticated
@@ -26,10 +25,10 @@ func PlaceOrder() gin.HandlerFunc {
 			return
 		}
 
-		// Convert the userID to ObjectID
+		// Convert the userID to ObjectID (Ensure it's a valid 24-character hex string)
 		userObjectID, err := primitive.ObjectIDFromHex(userID)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
 			return
 		}
 
@@ -48,12 +47,24 @@ func PlaceOrder() gin.HandlerFunc {
 		order.OrderedAt = time.Now()
 		order.Status = "Processing" // Default status
 
+		// Ensure items exist
+		if len(order.Items) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Order must contain at least one item"})
+			return
+		}
+
 		// Calculate the total price if it's not already provided
 		if order.TotalPrice == 0 {
 			order.TotalPrice = 0
 			for _, item := range order.Items {
 				order.TotalPrice += item.Price * float64(item.Quantity)
 			}
+		}
+
+		// Set discount to zero if it's not provided
+		if order.Discount == nil {
+			var zero float64
+			order.Discount = &zero
 		}
 
 		// Insert the order into the database
