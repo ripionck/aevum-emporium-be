@@ -16,87 +16,171 @@ import (
 
 var ProductCollection *mongo.Collection = datasource.ProductData(datasource.Client, "Products")
 
-func ProductViewerAdmin() gin.HandlerFunc {
+func AddProduct() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		var products models.Product
 		defer cancel()
-		if err := c.BindJSON(&products); err != nil {
+
+		var product models.Product
+		if err := c.BindJSON(&product); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		products.Product_ID = primitive.NewObjectID()
-		_, anyerr := ProductCollection.InsertOne(ctx, products)
-		if anyerr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Not Created"})
+
+		product.ProductID = primitive.NewObjectID()
+		product.CreatedAt = time.Now()
+		product.UpdatedAt = time.Now()
+
+		_, err := ProductCollection.InsertOne(ctx, product)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Product could not be created"})
 			return
 		}
-		defer cancel()
-		c.JSON(http.StatusOK, "Successfully added our Product Admin!!")
+
+		c.JSON(http.StatusOK, gin.H{"message": "Product successfully created"})
 	}
 }
 
-func SearchProduct() gin.HandlerFunc {
+func GetProducts() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var productlist []models.Product
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
-		cursor, err := ProductCollection.Find(ctx, bson.D{{}})
+
+		var products []models.Product
+		cursor, err := ProductCollection.Find(ctx, bson.M{})
 		if err != nil {
-			c.IndentedJSON(http.StatusInternalServerError, "Someting Went Wrong Please Try After Some Time")
-			return
-		}
-		err = cursor.All(ctx, &productlist)
-		if err != nil {
-			log.Println(err)
-			c.AbortWithStatus(http.StatusInternalServerError)
+			log.Println("Error fetching products:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching products"})
 			return
 		}
 		defer cursor.Close(ctx)
-		if err := cursor.Err(); err != nil {
-			// Don't forget to log errors. I log them really simple here just
-			// to get the point across.
-			log.Println(err)
-			c.IndentedJSON(400, "invalid")
+
+		if err := cursor.All(ctx, &products); err != nil {
+			log.Println("Error decoding products:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error decoding products"})
 			return
 		}
-		defer cancel()
-		c.IndentedJSON(200, productlist)
 
+		c.JSON(http.StatusOK, products)
 	}
 }
 
-func SearchProductByQuery() gin.HandlerFunc {
+func GetProductByID() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var searchproducts []models.Product
-		queryParam := c.Query("name")
-		if queryParam == "" {
-			log.Println("query is empty")
-			c.Header("Content-Type", "application/json")
-			c.JSON(http.StatusNotFound, gin.H{"Error": "Invalid Search Index"})
-			c.Abort()
+		productID := c.Param("id")
+		objID, err := primitive.ObjectIDFromHex(productID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
 			return
 		}
+
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
-		searchquerydb, err := ProductCollection.Find(ctx, bson.M{"product_name": bson.M{"$regex": queryParam}})
+
+		var product models.Product
+		err = ProductCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&product)
 		if err != nil {
-			c.IndentedJSON(404, "something went wrong in fetching the dbquery")
+			log.Println("Product not found:", err)
+			c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
 			return
 		}
-		err = searchquerydb.All(ctx, &searchproducts)
+
+		c.JSON(http.StatusOK, product)
+	}
+}
+
+func UpdateProduct() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		productID := c.Param("id")
+		objID, err := primitive.ObjectIDFromHex(productID)
 		if err != nil {
-			log.Println(err)
-			c.IndentedJSON(400, "invalid")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
 			return
 		}
-		defer searchquerydb.Close(ctx)
-		if err := searchquerydb.Err(); err != nil {
-			log.Println(err)
-			c.IndentedJSON(400, "invalid request")
-			return
-		}
+
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
-		c.IndentedJSON(200, searchproducts)
+
+		var product models.Product
+		if err := c.BindJSON(&product); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		product.UpdatedAt = time.Now()
+		update := bson.M{"$set": product}
+		_, err = ProductCollection.UpdateOne(ctx, bson.M{"_id": objID}, update)
+		if err != nil {
+			log.Println("Error updating product:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error updating product"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Product successfully updated"})
+	}
+}
+
+func DeleteProduct() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		productID := c.Param("id")
+		objID, err := primitive.ObjectIDFromHex(productID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
+			return
+		}
+
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
+		_, err = ProductCollection.DeleteOne(ctx, bson.M{"_id": objID})
+		if err != nil {
+			log.Println("Error deleting product:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error deleting product"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Product successfully deleted"})
+	}
+}
+
+func SearchProductByCategoryOrName() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		category := c.Query("category")
+		name := c.Query("name")
+
+		var filter bson.M
+		if category != "" && name != "" {
+			filter = bson.M{"$and": []bson.M{
+				{"category": bson.M{"$regex": category, "$options": "i"}},
+				{"name": bson.M{"$regex": name, "$options": "i"}},
+			}}
+		} else if category != "" {
+			filter = bson.M{"category": bson.M{"$regex": category, "$options": "i"}}
+		} else if name != "" {
+			filter = bson.M{"name": bson.M{"$regex": name, "$options": "i"}}
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Please provide either category or name to search"})
+			return
+		}
+
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
+		var products []models.Product
+		cursor, err := ProductCollection.Find(ctx, filter)
+		if err != nil {
+			log.Println("Error fetching products by category or name:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching products"})
+			return
+		}
+		defer cursor.Close(ctx)
+
+		if err := cursor.All(ctx, &products); err != nil {
+			log.Println("Error decoding products:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error decoding products"})
+			return
+		}
+
+		c.JSON(http.StatusOK, products)
 	}
 }
