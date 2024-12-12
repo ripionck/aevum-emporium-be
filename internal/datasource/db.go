@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"go.mongodb.org/mongo-driver/mongo"
@@ -11,7 +12,8 @@ import (
 )
 
 func DBSet() *mongo.Client {
-	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://development:testpassword@localhost:27017"))
+	DB_URI := os.Getenv("DB_URI")
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(DB_URI))
 	if err != nil {
 		log.Fatalf("Error creating MongoDB client: %v", err)
 	}

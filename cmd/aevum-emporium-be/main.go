@@ -14,7 +14,7 @@ import (
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8000"
+		port = "8080"
 	}
 	app := controllers.NewApplication(datasource.ProductData(datasource.Client, "Products"), datasource.UserData(datasource.Client, "Users"))
 
